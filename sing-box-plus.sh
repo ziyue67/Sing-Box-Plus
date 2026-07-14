@@ -1201,9 +1201,15 @@ enable_bbr(){
 }
 
 apply_throughput_tuning(){
-  cat >/etc/sysctl.d/99-singbox-throughput.conf <<'EOF'
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
+  local congestion_control="bbr"
+  local available
+  available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  if printf '%s\n' "$available" | tr ' ' '\n' | grep -qx 'bbrplus'; then
+    congestion_control="bbrplus"
+  fi
+  cat >/etc/sysctl.d/99-singbox-throughput.conf <<EOF
+net.core.default_qdisc = fq_codel
+net.ipv4.tcp_congestion_control = $congestion_control
 net.core.netdev_max_backlog = 250000
 net.core.somaxconn = 65535
 net.ipv4.tcp_max_syn_backlog = 65535
@@ -1215,13 +1221,7 @@ net.ipv4.tcp_rmem = 4096 1048576 67108864
 net.ipv4.tcp_wmem = 4096 1048576 67108864
 EOF
   sysctl -p /etc/sysctl.d/99-singbox-throughput.conf >/dev/null 2>&1 || true
-  # Existing interfaces keep their old qdisc after sysctl changes. Replace the
-  # primary IPv4 egress qdisc so BBR uses FQ pacing immediately.
-  local dev
-  dev="$(ip -4 route show default 2>/dev/null | awk 'NR==1 {print $5}')"
-  if [[ -n "$dev" ]] && command -v tc >/dev/null 2>&1; then
-    tc qdisc replace dev "$dev" root fq 2>/dev/null || warn "无法将 $dev 的队列规则切换为 fq"
-  fi
+  info "TCP 拥塞控制：$congestion_control；队列规则：fq_codel"
 }
 
 # ===== 显示状态与 banner =====
