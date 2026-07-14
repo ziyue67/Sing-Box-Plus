@@ -1215,6 +1215,13 @@ net.ipv4.tcp_rmem = 4096 1048576 67108864
 net.ipv4.tcp_wmem = 4096 1048576 67108864
 EOF
   sysctl -p /etc/sysctl.d/99-singbox-throughput.conf >/dev/null 2>&1 || true
+  # Existing interfaces keep their old qdisc after sysctl changes. Replace the
+  # primary IPv4 egress qdisc so BBR uses FQ pacing immediately.
+  local dev
+  dev="$(ip -4 route show default 2>/dev/null | awk 'NR==1 {print $5}')"
+  if [[ -n "$dev" ]] && command -v tc >/dev/null 2>&1; then
+    tc qdisc replace dev "$dev" root fq 2>/dev/null || warn "无法将 $dev 的队列规则切换为 fq"
+  fi
 }
 
 # ===== 显示状态与 banner =====
