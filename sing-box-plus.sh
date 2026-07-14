@@ -286,10 +286,11 @@ ENABLE_ANYTLS=${ENABLE_ANYTLS:-true}
 
 # 常量
 SCRIPT_NAME="Sing-Box-Plus 管理脚本"
-SCRIPT_VERSION="v4.7.0"
+SCRIPT_VERSION="v4.7.1"
 FORK_RAW_URL="https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main"
 REALITY_SERVER=${REALITY_SERVER:-gateway.icloud.com}
 REALITY_SERVER_PORT=${REALITY_SERVER_PORT:-443}
+LISTEN_ADDR=${LISTEN_ADDR:-0.0.0.0}
 # A Reality target must be reachable from the VPS. Keep the default stable;
 # custom targets are checked before any generated configuration is used.
 REALITY_SERVERS=${REALITY_SERVERS:-"gateway.icloud.com"}
@@ -988,6 +989,7 @@ write_config(){
   local CRT="$CERT_DIR/fullchain.pem" KEY="$CERT_DIR/key.pem"
   jq -n \
   --arg RS "$REALITY_SERVER" --argjson RSP "${REALITY_SERVER_PORT:-443}" --arg UID "$UUID" \
+  --arg LISTEN_ADDR "$LISTEN_ADDR" \
   --arg WSHOST "$WARP_SOCKS_HOST" --argjson WSPORT "$WARP_SOCKS_PORT" \
   --arg RPR "$REALITY_PRIV" --arg RPB "$REALITY_PUB" --arg SID "$REALITY_SID" \
   --arg RS_VR "$RS_VR" --arg RS_GR "$RS_GR" --arg RS_TR "$RS_TR" \
@@ -1007,16 +1009,16 @@ write_config(){
   --arg W4 "${WARP_ADDRESS_V4:-}" --arg W6 "${WARP_ADDRESS_V6:-}" \
   --argjson WR1 "${WARP_RESERVED_1:-0}" --argjson WR2 "${WARP_RESERVED_2:-0}" --argjson WR3 "${WARP_RESERVED_3:-0}" \
   '
-  def inbound_vless($port; $rs): {type:"vless", listen:"::", listen_port:$port, users:[{uuid:$UID}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
-  def inbound_vless_flow($port; $rs): {type:"vless", listen:"::", listen_port:$port, users:[{uuid:$UID, flow:"xtls-rprx-vision"}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
-  def inbound_trojan($port; $rs): {type:"trojan", listen:"::", listen_port:$port, users:[{password:$UID}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
-  def inbound_hy2($port): {type:"hysteria2", listen:"::", listen_port:$port, users:[{name:"hy2", password:$HY2}], tls:{enabled:true, certificate_path:$CRT, key_path:$KEY}};
-  def inbound_vmess_ws($port): {type:"vmess", listen:"::", listen_port:$port, users:[{uuid:$UID}], transport:{type:"ws", path:$VMWS}};
-  def inbound_hy2_obfs($port): {type:"hysteria2", listen:"::", listen_port:$port, users:[{name:"hy2", password:$HY22}], obfs:{type:"salamander", password:$HY2O}, tls:{enabled:true, certificate_path:$CRT, key_path:$KEY, alpn:["h3"]}};
-  def inbound_ss2022($port): {type:"shadowsocks", listen:"::", listen_port:$port, method:"2022-blake3-aes-256-gcm", password:$SS2022};
-  def inbound_ss($port): {type:"shadowsocks", listen:"::", listen_port:$port, method:"aes-256-gcm", password:$SSPWD};
-  def inbound_tuic($port): {type:"tuic", listen:"::", listen_port:$port, users:[{uuid:$TUICUUID, password:$TUICPWD}], congestion_control:"bbr", tls:{enabled:true, certificate_path:$CRT, key_path:$KEY, alpn:["h3"]}};
-  def inbound_anytls($port): {type:"anytls", listen:"::", listen_port:$port, users:[{name:"anytls", password:$ANYTLSPWD}], tls:{enabled:true, certificate_path:$CRT, key_path:$KEY}};
+  def inbound_vless($port; $rs): {type:"vless", listen:$LISTEN_ADDR, listen_port:$port, users:[{uuid:$UID}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
+  def inbound_vless_flow($port; $rs): {type:"vless", listen:$LISTEN_ADDR, listen_port:$port, users:[{uuid:$UID, flow:"xtls-rprx-vision"}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
+  def inbound_trojan($port; $rs): {type:"trojan", listen:$LISTEN_ADDR, listen_port:$port, users:[{password:$UID}], tls:{enabled:true, server_name:$rs, reality:{enabled:true, handshake:{server:$rs, server_port:$RSP}, private_key:$RPR, short_id:[$SID]}}};
+  def inbound_hy2($port): {type:"hysteria2", listen:$LISTEN_ADDR, listen_port:$port, users:[{name:"hy2", password:$HY2}], tls:{enabled:true, certificate_path:$CRT, key_path:$KEY}};
+  def inbound_vmess_ws($port): {type:"vmess", listen:$LISTEN_ADDR, listen_port:$port, users:[{uuid:$UID}], transport:{type:"ws", path:$VMWS}};
+  def inbound_hy2_obfs($port): {type:"hysteria2", listen:$LISTEN_ADDR, listen_port:$port, users:[{name:"hy2", password:$HY22}], obfs:{type:"salamander", password:$HY2O}, tls:{enabled:true, certificate_path:$CRT, key_path:$KEY, alpn:["h3"]}};
+  def inbound_ss2022($port): {type:"shadowsocks", listen:$LISTEN_ADDR, listen_port:$port, method:"2022-blake3-aes-256-gcm", password:$SS2022};
+  def inbound_ss($port): {type:"shadowsocks", listen:$LISTEN_ADDR, listen_port:$port, method:"aes-256-gcm", password:$SSPWD};
+  def inbound_tuic($port): {type:"tuic", listen:$LISTEN_ADDR, listen_port:$port, users:[{uuid:$TUICUUID, password:$TUICPWD}], congestion_control:"bbr", tls:{enabled:true, certificate_path:$CRT, key_path:$KEY, alpn:["h3"]}};
+  def inbound_anytls($port): {type:"anytls", listen:$LISTEN_ADDR, listen_port:$port, users:[{name:"anytls", password:$ANYTLSPWD}], tls:{enabled:true, certificate_path:$CRT, key_path:$KEY}};
 
   def warp_outbound:
     {type:"socks", tag:"warp", server:$WSHOST, server_port:$WSPORT};
@@ -1201,15 +1203,16 @@ enable_bbr(){
 apply_throughput_tuning(){
   cat >/etc/sysctl.d/99-singbox-throughput.conf <<'EOF'
 net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
 net.core.netdev_max_backlog = 250000
 net.core.somaxconn = 65535
 net.ipv4.tcp_max_syn_backlog = 65535
 net.ipv4.tcp_fastopen = 3
 net.ipv4.tcp_mtu_probing = 1
-net.core.rmem_max = 33554432
-net.core.wmem_max = 33554432
-net.ipv4.tcp_rmem = 4096 1048576 33554432
-net.ipv4.tcp_wmem = 4096 1048576 33554432
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.ipv4.tcp_rmem = 4096 1048576 67108864
+net.ipv4.tcp_wmem = 4096 1048576 67108864
 EOF
   sysctl -p /etc/sysctl.d/99-singbox-throughput.conf >/dev/null 2>&1 || true
 }
@@ -1247,6 +1250,7 @@ banner(){
 
 # ===== 业务流程 =====
 restart_service(){
+  apply_throughput_tuning
   systemctl restart "${SYSTEMD_SERVICE}" || die "重启失败"
   systemctl --no-pager status "${SYSTEMD_SERVICE}" | sed -n '1,6p' || true
 }
