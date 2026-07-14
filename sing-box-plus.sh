@@ -1214,7 +1214,9 @@ net.core.netdev_max_backlog = 250000
 net.core.somaxconn = 65535
 net.ipv4.tcp_max_syn_backlog = 65535
 net.ipv4.tcp_fastopen = 3
-net.ipv4.tcp_mtu_probing = 1
+# A lossy route can make probe mode shrink MSS to 64/128 bytes even when the
+# path MTU is 1500. Keep probing disabled unless a real MTU black hole exists.
+net.ipv4.tcp_mtu_probing = 0
 net.core.rmem_max = 67108864
 net.core.wmem_max = 67108864
 net.ipv4.tcp_rmem = 4096 1048576 67108864
