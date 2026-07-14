@@ -287,6 +287,7 @@ ENABLE_ANYTLS=${ENABLE_ANYTLS:-true}
 # 常量
 SCRIPT_NAME="Sing-Box-Plus 管理脚本"
 SCRIPT_VERSION="v4.7.0"
+FORK_RAW_URL="https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main"
 REALITY_SERVER=${REALITY_SERVER:-gateway.icloud.com}
 REALITY_SERVER_PORT=${REALITY_SERVER_PORT:-443}
 # A Reality target must be reachable from the VPS. Keep the default stable;
@@ -1225,7 +1226,7 @@ banner(){
   clear >/dev/null 2>&1 || true
   hr
   echo -e " ${C_CYAN}🚀 ${SCRIPT_NAME} ${SCRIPT_VERSION} 🚀${C_RESET}"
-  echo -e "${C_CYAN} 脚本更新地址: https://github.com/Alvin9999-newpac/Sing-Box-Plus${C_RESET}"
+  echo -e "${C_CYAN} 脚本更新地址: https://github.com/ziyue67/Sing-Box-Plus${C_RESET}"
 
   hr
   echo -e "系统加速状态：$(bbr_state)"
@@ -1237,8 +1238,10 @@ banner(){
   echo -e "  ${C_GREEN}3)${C_RESET} 重启服务"
   echo -e "  ${C_GREEN}4)${C_RESET} 一键更换所有端口"
   echo -e "  ${C_GREEN}5)${C_RESET} 一键开启 BBR"
-  echo -e "  ${C_RED}8)${C_RESET} 卸载"
-  echo -e "  ${C_RED}0)${C_RESET} 退出"
+  echo -e "  ${C_GREEN}7)${C_RESET} 安装三协议轻量版"
+  echo -e "  ${C_GREEN}8)${C_RESET} 安装独立 SOCKS5"
+  echo -e "  ${C_RED}9)${C_RESET} 卸载"
+  echo -e "  ${C_RED}10)${C_RESET} 退出"
   hr
 }
 
@@ -1304,6 +1307,20 @@ ensure_installed_or_hint(){
   return 0
 }
 
+run_addon_installer(){
+  local script_name="$1" description="$2" target="/root/$1"
+  info "下载${description}脚本 ..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -4 -fL --retry 3 --connect-timeout 15 -o "$target" "$FORK_RAW_URL/$script_name" || die "下载失败: $FORK_RAW_URL/$script_name"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -4 -O "$target" "$FORK_RAW_URL/$script_name" || die "下载失败: $FORK_RAW_URL/$script_name"
+  else
+    die "未找到 curl 或 wget，无法下载${description}脚本"
+  fi
+  chmod 700 "$target"
+  bash "$target"
+}
+
 # ===== 菜单 =====
 menu(){
   banner
@@ -1329,8 +1346,15 @@ menu(){
     3) if ensure_installed_or_hint; then restart_service; fi; read -rp "回车返回..." _ || true; menu ;;
    4) if ensure_installed_or_hint; then rotate_ports; fi; menu ;;
     5) enable_bbr; read -rp "回车返回..." _ || true; menu ;;
-    8) uninstall_all ;; # 直接退出
-    0) exit 0 ;;
+    7)
+      warn "三协议轻量版使用 /etc/sing-box 和 sing-box.service；在其中执行安装/部署会替换当前 20 节点配置。"
+      read -rp "输入 YES 继续，其他输入返回: " confirm || true
+      [[ "${confirm:-}" == "YES" ]] && run_addon_installer "sing-box-plus-3protocols.sh" "三协议轻量版"
+      menu
+      ;;
+    8) run_addon_installer "sing-box-plus-socks5.sh" "独立 SOCKS5"; menu ;;
+    9) uninstall_all ;; # 直接退出
+    10|0) exit 0 ;;
     *) menu ;;
   esac
 }

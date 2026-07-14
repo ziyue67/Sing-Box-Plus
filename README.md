@@ -94,7 +94,7 @@ curl -fsSL -o sing-box-plus-socks5.sh https://raw.githubusercontent.com/ziyue67/
 
 ```text
  🚀 Sing-Box-Plus 管理脚本 v4.7.0 🚀
- 脚本更新地址: https://github.com/Alvin9999-newpac/Sing-Box-Plus
+ 脚本更新地址: https://github.com/ziyue67/Sing-Box-Plus
 =============================================================
 系统加速状态：已启用 / 未启用 BBR
 Sing-Box 启动状态：运行中 / 未运行 / 未安装
@@ -105,8 +105,10 @@ Sing-Box 启动状态：运行中 / 未运行 / 未安装
   3) 重启服务
   4) 一键更换所有端口
   5) 一键开启 BBR
-  8) 卸载
-  0) 退出
+  7) 安装三协议轻量版
+  8) 安装独立 SOCKS5
+  9) 卸载
+  10) 退出
 =============================================================
 ```
 
