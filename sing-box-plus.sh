@@ -287,11 +287,11 @@ ENABLE_ANYTLS=${ENABLE_ANYTLS:-true}
 # 常量
 SCRIPT_NAME="Sing-Box-Plus 管理脚本"
 SCRIPT_VERSION="v4.7.0"
-REALITY_SERVER=${REALITY_SERVER:-www.microsoft.com}
+REALITY_SERVER=${REALITY_SERVER:-gateway.icloud.com}
 REALITY_SERVER_PORT=${REALITY_SERVER_PORT:-443}
-# REALITY 偷域名池：每个 reality inbound 安装时各自随机抽一个，抽中后写入 creds.env 持久化，
-# 重启/重装不会变（不会让旧客户端链接失效）。空格分隔，全部需满足 TLS1.3 + H2、不重定向、未被墙。
-REALITY_SERVERS=${REALITY_SERVERS:-"swift.org yahoo.com www.yahoo.com addons.mozilla.org lovelive-anime.jp www.lovelive-anime.jp one-piece.com www.one-piece.com www.microsoft.com www.apple.com gateway.icloud.com"}
+# A Reality target must be reachable from the VPS. Keep the default stable;
+# custom targets are checked before any generated configuration is used.
+REALITY_SERVERS=${REALITY_SERVERS:-"gateway.icloud.com"}
 GRPC_SERVICE=${GRPC_SERVICE:-grpc}
 VMESS_WS_PATH=${VMESS_WS_PATH:-/vm}
 
@@ -539,11 +539,22 @@ rand_hex8(){
 }
 rand_b64_32(){ openssl rand -base64 32 | tr -d "\n"; }
 
-# 从 REALITY_SERVERS 池里随机抽一个域名（池为空则回退到 REALITY_SERVER）
+# Pick only a target that completes a TLS handshake from the VPS.
+validate_reality_target(){
+  local server="$1"
+  timeout 12 openssl s_client -connect "${server}:${REALITY_SERVER_PORT}" \
+    -servername "$server" -brief </dev/null >/dev/null 2>&1
+}
+
 pick_reality(){
-  local arr=($REALITY_SERVERS); local n=${#arr[@]}
-  (( n == 0 )) && { printf '%s' "$REALITY_SERVER"; return; }
-  printf '%s' "${arr[$((RANDOM % n))]}"
+  local serve
+  for server in $REALITY_SERVERS; do
+    if validate_reality_target "$server"; then
+      printf '%s' "$server"
+      return 0
+    fi
+  done
+  die "No configured Reality target passed TLS validation"
 }
 
 gen_uuid(){
@@ -582,13 +593,14 @@ ensure_creds(){
   [[ -z "${SS_PWD:-}" ]] && SS_PWD=$(openssl rand -base64 24 | tr -d "=\n" | tr "+/" "-_")
   TUIC_UUID="$UUID"; TUIC_PWD="$UUID"
   [[ -z "${ANYTLS_PWD:-}" ]] && ANYTLS_PWD=$(rand_b64_32)
-  # 每个 reality inbound 独立随机偷一个域名（首次安装抽取后持久化）
-  [[ -z "${RS_VR:-}"  ]] && RS_VR=$(pick_reality)    # vless-reality
-  [[ -z "${RS_GR:-}"  ]] && RS_GR=$(pick_reality)    # vless-grpc-reality
-  [[ -z "${RS_TR:-}"  ]] && RS_TR=$(pick_reality)    # trojan-reality
-  [[ -z "${RS_VRW:-}" ]] && RS_VRW=$(pick_reality)   # vless-reality-warp
-  [[ -z "${RS_GRW:-}" ]] && RS_GRW=$(pick_reality)   # vless-grpc-reality-warp
-  [[ -z "${RS_TRW:-}" ]] && RS_TRW=$(pick_reality)   # trojan-reality-warp
+  # Revalidate targets on every config generation so stale persisted domains
+  # cannot produce non-working Reality links.
+  RS_VR=$(pick_reality)
+  RS_GR=$(pick_reality)
+  RS_TR=$(pick_reality)
+  RS_VRW=$(pick_reality)
+  RS_GRW=$(pick_reality)
+  RS_TRW=$(pick_reality)
   save_creds
 }
 
@@ -951,6 +963,7 @@ Requires=network-online.target
 [Service]
 Type=simple
 Environment=ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+Environment=ENABLE_DEPRECATED_LEGACY_DOMAIN_STRATEGY_OPTIONS=true
 ExecStart=${BIN_PATH} run -c ${CONF_JSON} -D ${DATA_DIR}
 Restart=on-failure
 RestartSec=3
@@ -1010,7 +1023,7 @@ write_config(){
 
   {
     log:{level:"info", timestamp:true},
-  dns:{ servers:[ {type:"https", tag:"dns-remote", server:"1.1.1.1", server_port:443, path:"/dns-query"}, {type:"udp", tag:"dns-local", server:"8.8.8.8"} ], strategy:"prefer_ipv4" },
+  dns:{ servers:[ {type:"https", tag:"dns-remote", server:"1.1.1.1", server_port:443, path:"/dns-query"}, {type:"udp", tag:"dns-local", server:"8.8.8.8"} ], strategy:"ipv4_only" },
   inbounds:[
       (inbound_vless_flow($P1; $RS_VR) + {tag:"vless-reality"}),
       (inbound_vless($P2; $RS_GR) + {tag:"vless-grpcr", transport:{type:"grpc", service_name:$GRPC}}),
@@ -1036,9 +1049,9 @@ write_config(){
     ],
     outbounds: (
       if $ENABLE_WARP=="true" then
-        [{type:"direct", tag:"direct"}, {type:"block", tag:"block"}, warp_outbound]
+        [{type:"direct", tag:"direct", domain_strategy:"ipv4_only"}, {type:"block", tag:"block"}, warp_outbound]
       else
-        [{type:"direct", tag:"direct"}, {type:"block", tag:"block"}]
+        [{type:"direct", tag:"direct", domain_strategy:"ipv4_only"}, {type:"block", tag:"block"}]
       end
     ),
     route: (
@@ -1184,6 +1197,22 @@ enable_bbr(){
   fi
 }
 
+apply_throughput_tuning(){
+  cat >/etc/sysctl.d/99-singbox-throughput.conf <<'EOF'
+net.core.default_qdisc = fq
+net.core.netdev_max_backlog = 250000
+net.core.somaxconn = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_mtu_probing = 1
+net.core.rmem_max = 33554432
+net.core.wmem_max = 33554432
+net.ipv4.tcp_rmem = 4096 1048576 33554432
+net.ipv4.tcp_wmem = 4096 1048576 33554432
+EOF
+  sysctl -p /etc/sysctl.d/99-singbox-throughput.conf >/dev/null 2>&1 || true
+}
+
 # ===== 显示状态与 banner =====
 sb_service_state(){
   systemctl is-active --quiet "${SYSTEMD_SERVICE:-sing-box.service}" && echo -e "${C_GREEN}运行中${C_RESET}" || echo -e "${C_RED}未运行/未安装${C_RESET}"
@@ -1255,10 +1284,11 @@ deploy_native(){
   install_singbox
   write_config
   info "检查配置 ..."
-  "$BIN_PATH" check -c "$CONF_JSON"
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_LEGACY_DOMAIN_STRATEGY_OPTIONS=true "$BIN_PATH" check -c "$CONF_JSON" || die "配置校验失败，未重启服务"
   info "写入并启用 systemd 服务 ..."
   write_systemd
-  systemctl restart "${SYSTEMD_SERVICE}" >/dev/null 2>&1 || true
+  apply_throughput_tuning
+  systemctl restart "${SYSTEMD_SERVICE}" || die "服务启动失败"
   open_firewall
   echo; echo -e "${C_BOLD}${C_GREEN}★ 部署完成（20 节点）${C_RESET}"; echo
   # 打印链接并直接退出
@@ -1281,15 +1311,15 @@ menu(){
   case "${op:-}" in
   1)
   sbp_bootstrap                                     # 依赖/二进制回退
-  set +e                                            # ← 关闭严格退出，避免中途被杀掉
   echo -e "${C_BLUE}[信息] 正在检查 sing-box 安装状态...${C_RESET}"
-  install_singbox            || true
-  ensure_warpcli_proxy        || true
-  write_config               || { echo "[ERR] 生成配置失败"; }
-  write_systemd              || true
-  open_firewall              || true
-  systemctl restart "${SYSTEMD_SERVICE}" || true
-  set -e                                            # ← 恢复严格模式
+  install_singbox
+  [[ "$ENABLE_WARP" == "true" ]] && ensure_warpcli_proxy
+  write_config
+  ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true ENABLE_DEPRECATED_LEGACY_DOMAIN_STRATEGY_OPTIONS=true "$BIN_PATH" check -c "$CONF_JSON" || die "配置校验失败，未重启服务"
+  write_systemd
+  apply_throughput_tuning
+  open_firewall
+  systemctl restart "${SYSTEMD_SERVICE}" || die "服务启动失败"
   print_links_grouped
   exit 0                                          # ← 打印后直接退出
   ;;
