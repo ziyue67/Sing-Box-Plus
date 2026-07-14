@@ -7,7 +7,7 @@
 set -Eeuo pipefail
 
 SCRIPT_NAME="sing-box-plus-3protocols"
-SCRIPT_VERSION="v1.3.0-3protocols-sb1.8.14-ipv4"
+SCRIPT_VERSION="v1.3.1-3protocols-sb1.8.14-ipv4"
 SB_VERSION="${SB_VERSION:-1.8.14}"
 SB_DIR="${SB_DIR:-/etc/sing-box}"
 BIN_PATH="${BIN_PATH:-/usr/local/bin/sing-box}"
@@ -20,7 +20,7 @@ SERVICE_NAME="sing-box.service"
 SYSCTL_FILE="/etc/sysctl.d/99-sing-box-plus-performance.conf"
 REALITY_SERVER="${REALITY_SERVER:-gateway.icloud.com}"
 REALITY_SERVER_PORT="${REALITY_SERVER_PORT:-443}"
-LISTEN_ADDR="${LISTEN_ADDR:-::}"
+LISTEN_ADDR="${LISTEN_ADDR:-0.0.0.0}"
 
 C_RESET='\033[0m'; C_GREEN='\033[32m'; C_RED='\033[31m'; C_BLUE='\033[34m'; C_CYAN='\033[36m'; C_BOLD='\033[1m'; C_YELLOW='\033[33m'
 ok(){ echo -e "${C_GREEN}[OK]${C_RESET} $*"; }
@@ -155,14 +155,9 @@ write_config(){
   ],
   "outbounds": [
     { "type": "direct", "tag": "direct-ipv4", "domain_strategy": "ipv4_only" },
-    { "type": "direct", "tag": "direct-ipv6", "domain_strategy": "ipv6_only" },
     { "type": "block", "tag": "block" }
   ],
   "route": {
-    "rules": [
-      { "ip_version": 4, "outbound": "direct-ipv4" },
-      { "ip_version": 6, "outbound": "direct-ipv6" }
-    ],
     "final": "direct-ipv4"
   }
 }
