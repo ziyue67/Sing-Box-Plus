@@ -1334,6 +1334,13 @@ run_addon_installer(){
   bash "$target"
 }
 
+confirm_addon_install(){
+  local answer
+  read -rp "输入 yes 继续，其他输入返回: " answer || true
+  answer="$(printf '%s' "${answer:-}" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')"
+  [[ "$answer" == "yes" || "$answer" == "y" ]]
+}
+
 # ===== 菜单 =====
 menu(){
   banner
@@ -1361,8 +1368,9 @@ menu(){
     5) enable_bbr; read -rp "回车返回..." _ || true; menu ;;
     7)
       warn "三协议轻量版使用 /etc/sing-box 和 sing-box.service；在其中执行安装/部署会替换当前 20 节点配置。"
-      read -rp "输入 YES 继续，其他输入返回: " confirm || true
-      [[ "${confirm:-}" == "YES" ]] && run_addon_installer "sing-box-plus-3protocols.sh" "三协议轻量版"
+      if confirm_addon_install; then
+        run_addon_installer "sing-box-plus-3protocols.sh" "三协议轻量版"
+      fi
       menu
       ;;
     8) run_addon_installer "sing-box-plus-socks5.sh" "独立 SOCKS5"; menu ;;
