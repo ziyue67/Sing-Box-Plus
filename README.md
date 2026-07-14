@@ -55,16 +55,30 @@
 ## 📥 一键安装 / 更新脚本
 
 ```bash
-wget -O sing-box-plus.sh https://raw.githubusercontent.com/Alvin9999-newpac/Sing-Box-Plus/main/sing-box-plus.sh && chmod +x sing-box-plus.sh && bash sing-box-plus.sh
+wget -O sing-box-plus.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus.sh && chmod +x sing-box-plus.sh && bash sing-box-plus.sh
 ```
 
 或者
 
 ```bash
-curl -fsSL -o sing-box-plus.sh https://raw.githubusercontent.com/Alvin9999-newpac/Sing-Box-Plus/main/sing-box-plus.sh && chmod +x sing-box-plus.sh && bash sing-box-plus.sh
+curl -fsSL -o sing-box-plus.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus.sh && chmod +x sing-box-plus.sh && bash sing-box-plus.sh
 ```
 
 安装完成后，输入 `bash sing-box-plus.sh` 可进入管理页面。
+
+更新已安装的主脚本：
+
+```bash
+curl -fsSL -o /root/sing-box-plus.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus.sh && chmod +x /root/sing-box-plus.sh && bash /root/sing-box-plus.sh
+```
+
+### 三协议轻量版
+
+仅部署 `Hysteria2 + OBFS salamander`、`VLESS TLS TCP`、`Trojan TLS TCP`，不安装或使用 WARP：
+
+```bash
+curl -fsSL -o sing-box-plus-3protocols.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus-3protocols.sh && chmod +x sing-box-plus-3protocols.sh && bash sing-box-plus-3protocols.sh
+```
 
 ---
 
