@@ -143,7 +143,7 @@ Sing-Box 启动状态：运行中 / 未运行 / 未安装
 
 ```text
 # 直连（示例）
-vless://<UUID>@<IP>:<PORT>?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.microsoft.com&fp=chrome&pbk=<REALITY_PUB>&sid=<SID>&type=tcp#vless-reality
+vless://<UUID>@<IP>:<PORT>?encryption=none&flow=xtls-rprx-vision&security=reality&sni=gateway.icloud.com&fp=chrome&pbk=<REALITY_PUB>&sid=<SID>&type=tcp#vless-reality
 vmess://<Base64(JSON)>
 hy2://<pwd_b64url>@<IP>:<PORT>?insecure=1&allowInsecure=1&sni=<REALITY_SERVER>#hysteria2
 ss://<base64(method:password)>@<IP>:<PORT>#ss / #ss2022
@@ -247,7 +247,7 @@ rm -f /usr/local/bin/sing-box
 
 ## ⚙️ 进阶：自定义（可选）
 
-* `REALITY_SERVER` / `REALITY_SERVER_PORT` / `GRPC_SERVICE` / `VMESS_WS_PATH` / `ENABLE_ANYTLS` 等可在 `/opt/sing-box/env.conf` 中修改，然后：
+* `REALITY_SERVER` / `REALITY_SERVER_PORT` / `GRPC_SERVICE` / `VMESS_WS_PATH` / `ENABLE_ANYTLS` 等可在 `/opt/sing-box/env.conf` 中修改。Reality 目标必须可从 VPS 完成 TLS 握手；脚本会在重启服务前验证它。
 
 ```bash
 bash sing-box-plus.sh   # 执行 3) 重启服务 或 1) 重新部署
