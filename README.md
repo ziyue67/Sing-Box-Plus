@@ -80,6 +80,14 @@ curl -fsSL -o /root/sing-box-plus.sh https://raw.githubusercontent.com/ziyue67/S
 curl -fsSL -o sing-box-plus-3protocols.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus-3protocols.sh && chmod +x sing-box-plus-3protocols.sh && bash sing-box-plus-3protocols.sh
 ```
 
+### 独立 SOCKS5
+
+仅部署带用户名和密码认证的 SOCKS5 服务，出站强制 IPv4，使用独立配置目录与服务名，不影响主脚本和三协议版本：
+
+```bash
+curl -fsSL -o sing-box-plus-socks5.sh https://raw.githubusercontent.com/ziyue67/Sing-Box-Plus/main/sing-box-plus-socks5.sh && chmod +x sing-box-plus-socks5.sh && bash sing-box-plus-socks5.sh
+```
+
 ---
 
 ## 🧭 功能菜单
