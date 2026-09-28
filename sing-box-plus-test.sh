@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 #  Sing-Box-Plus 管理脚本（20 节点：直连 10 + WARP 10）
-#  Version: v4.7.0
+#  Version: v4.7.1
 #  author：Alvin9999
 #  Repo: https://github.com/Alvin9999-newpac/Sing-Box-Plus
 # ============================================================
@@ -286,7 +286,7 @@ ENABLE_ANYTLS=${ENABLE_ANYTLS:-true}
 
 # 常量
 SCRIPT_NAME="Sing-Box-Plus 管理脚本"
-SCRIPT_VERSION="v4.7.0"
+SCRIPT_VERSION="v4.7.1"
 REALITY_SERVER=${REALITY_SERVER:-www.microsoft.com}
 REALITY_SERVER_PORT=${REALITY_SERVER_PORT:-443}
 # REALITY 偷域名池：每个 reality inbound 安装时各自随机抽一个，抽中后写入 creds.env 持久化，
@@ -513,6 +513,43 @@ RS_TRW=$RS_TRW
 EOF
 }
 load_creds(){ safe_source_env "$SB_DIR/creds.env" || return 1; }
+
+# ===== 旧版安装兼容：补齐 Reality SNI（RS_*）=====
+# 早期版本的 creds.env 没有 RS_* 字段，直接引用 ${RS_VR} 会在 set -u 下
+# 报 "RS_VR: unbound variable" 并把脚本打断（2)/6) 查看分享链接必现）。
+reality_sni_from_config(){ # 读取当前 config.json 里该 inbound 真正使用的 server_name
+  local tag="$1" v=""
+  [[ -s "$CONF_JSON" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  v=$(jq -r --arg t "$tag" 'first(.inbounds[]? | select(.tag == $t) | .tls.server_name // empty) // empty' "$CONF_JSON" 2>/dev/null || true)
+  [[ -n "$v" && "$v" != "null" ]] || return 1
+  printf '%s' "$v"
+}
+
+ensure_reality_sni(){
+  # 取值优先级：creds.env 已有值 > config.json 实际值 > REALITY_SERVER 默认值
+  local pair var tag val
+  for pair in RS_VR:vless-reality RS_GR:vless-grpcr RS_TR:trojan-reality \
+              RS_VRW:vless-reality-warp RS_GRW:vless-grpcr-warp RS_TRW:trojan-reality-warp; do
+    var="${pair%%:*}"; tag="${pair#*:}"
+    val="${!var:-}"
+    [[ -n "$val" ]] && continue
+    val="$(reality_sni_from_config "$tag" || true)"
+    [[ -n "$val" ]] || val="${REALITY_SERVER:-gateway.icloud.com}"
+    printf -v "$var" '%s' "$val"
+  done
+}
+
+persist_reality_sni(){ # 仅在 creds.env 存在时把补齐结果写回（保留原权限）
+  local f="$SB_DIR/creds.env" tmp
+  [[ -s "$f" ]] || return 0
+  tmp="$(mktemp)" || return 0
+  grep -v -E '^(RS_VR|RS_GR|RS_TR|RS_VRW|RS_GRW|RS_TRW)=' "$f" >"$tmp" || true
+  printf 'RS_VR=%s\nRS_GR=%s\nRS_TR=%s\nRS_VRW=%s\nRS_GRW=%s\nRS_TRW=%s\n' \
+    "$RS_VR" "$RS_GR" "$RS_TR" "$RS_VRW" "$RS_GRW" "$RS_TRW" >>"$tmp"
+  cat "$tmp" >"$f"   # 覆写内容而非替换文件，避免改变属主/权限
+  rm -f "$tmp"
+}
 
 save_warp(){ cat > "$SB_DIR/warp.env" <<EOF
 WARP_PRIVATE_KEY=$WARP_PRIVATE_KEY
@@ -1108,8 +1145,36 @@ open_firewall(){
 
 # ===== 分享链接（分组输出 + 提示） =====
 print_links_grouped(){
-  load_env; load_creds; load_ports
   ensure_dirs
+  load_env || true
+  load_creds || true
+  load_ports || true
+
+  # 旧版安装补齐 RS_*（否则 set -u 下会以 unbound variable 中断）
+  ensure_reality_sni
+  persist_reality_sni
+
+  # 空值兜底：env.conf 被写成空值时也不会生成坏链接
+  : "${REALITY_SERVER:=gateway.icloud.com}"
+  : "${GRPC_SERVICE:=grpc}"
+  : "${VMESS_WS_PATH:=/vm}"
+
+  # 快速自检：缺配置时给出明确提示，而不是静默报 unbound variable 退出
+  local miss=() v
+  for v in UUID HY2_PWD REALITY_PUB REALITY_SID HY2_PWD2 HY2_OBFS_PWD SS2022_KEY SS_PWD ANYTLS_PWD; do
+    [[ -n "${!v:-}" ]] || miss+=("$v")
+  done
+  for v in PORT_VLESSR PORT_VLESS_GRPCR PORT_TROJANR PORT_HY2 PORT_VMESS_WS PORT_HY2_OBFS PORT_SS2022 PORT_SS PORT_TUIC PORT_ANYTLS \
+           PORT_VLESSR_W PORT_VLESS_GRPCR_W PORT_TROJANR_W PORT_HY2_W PORT_VMESS_WS_W PORT_HY2_OBFS_W PORT_SS2022_W PORT_SS_W PORT_TUIC_W PORT_ANYTLS_W; do
+    [[ -n "${!v:-}" ]] || miss+=("$v")
+  done
+  if ((${#miss[@]})); then
+    err "缺少必要配置项：${miss[*]}"
+    err "该安装可能来自旧版本，或 $SB_DIR 下的 creds.env / ports.env 已损坏"
+    err "请先执行 1) 安装/部署重新生成配置后再查看链接"
+    return 0
+  fi
+
   mk_cert    # 确保 CRT_SHA256 已赋值（pinnedPeerCertSha256 节点需要）
   local mode="${1:-4}" ip host
   if [[ "$mode" == "6" ]]; then
